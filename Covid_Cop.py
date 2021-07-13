@@ -34,7 +34,7 @@ def Detect_people(frame,yolo,min_confi=0.7 , min_thres=0.3,person_id=0):
     # apply NMS(non-max Suppression) on Bounding Boxes
     Final_Boxes,Final_Confidance,Final_ClassId,Final_Centroid=[],[],[],[]
     indeces = cv2.dnn.NMSBoxes(Boxes,Confidance,MIN_CONFIDANCE,MIN_THRESHOLD) # output is 2d array
-
+    # consider Bounding boxes after NMS
     if(len(indeces)>0):
         for i in indeces.flatten():
             Final_Boxes.append(Boxes[i])
@@ -44,13 +44,13 @@ def Detect_people(frame,yolo,min_confi=0.7 , min_thres=0.3,person_id=0):
     
     return [ Final_Boxes,Final_Confidance,Final_ClassId,Final_Centroid]
 
-   # -----------------begin----------------- 
+                    # -----------------begin----------------- 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i","--input",type=str, default="",help="Path to input(Optional) Video file")
 parser.add_argument("-c","--confidance",type=float, default=0.7,help="Min Confidance to Detect object")
 parser.add_argument("-t","--Threshold",type=float, default=0.3,help="Threshold For Non-max-supression")
-parser.add_argument("-d","--Distance",type=int, default=5, help="Min Social Distance to maintain")
+parser.add_argument("-d","--Distance",type=int, default=100, help="Min Social Distance to maintain")
 
 arg= vars(parser.parse_args())
 
@@ -61,15 +61,15 @@ classes = []
 with open ('yolo-coco/coco.names') as file:
     classes=[ i for i in file.read().splitlines() ]
 
-
-
-video = cv2.VideoCapture(arg["input"] if(arg["input"]) else 0)
+# from where to take input frame
+input_path=arg["input"] if(arg["input"]) else 0 
+video = cv2.VideoCapture(input_path)
 
 MIN_CONFIDANCE = arg["confidance"]
 MIN_THRESHOLD = arg["Threshold"]
-MIN_DISTANCE = 50
+MIN_DISTANCE = arg["Distance"]
 
-target_obj_id = 0
+target_obj_id = 0 # id of person which is our targeted Object
 
 while(1):
     is_cap,frame = video.read()
@@ -80,9 +80,9 @@ while(1):
     Final_Boxes,Final_Confidance,Final_ClassId,Final_Centroid = Detect_people(frame,yolo,MIN_CONFIDANCE,MIN_THRESHOLD,target_obj_id)
     # now we have Bounding Boxes and their Centroids , now we can measure distance between all bounding Boxes
 
-    DIS = Dis(Final_Centroid,Final_Centroid,metric='euclidean') # output is 2d-metrix if distance between i, j
+    DIS = Dis(Final_Centroid,Final_Centroid,metric='euclidean') # output is 2d-metrix 
      
-    # find victm person based on distance
+    # find victim person based on distance
     voilationSet = set()
 
     for i in range(0,(DIS.shape[0])):
@@ -90,15 +90,19 @@ while(1):
             if(DIS[i,j] < MIN_DISTANCE ):
                 voilationSet.add(i)
                 voilationSet.add(j)
-    print(f"No of Victims people :{len(voilationSet)}")
+    # print(f"No of Victims people :{len(voilationSet)}")
 
     for i in range(0,len(Final_Boxes)):
         Color = (0,255,0)
-        if(i in voilationSet): # if Victim change Color 
+        if(i in voilationSet): # if Voilator then change Color 
             Color=(0,0,255)
 
         x,y,w,h = Final_Boxes[i]
         cv2.rectangle(frame,(x,y),(x+w,y+h),Color,2)
+        text1 = f"Human Count: {len(Final_Boxes)}" 
+        text2 = f"Voilator Count: {len(voilationSet)}" 
+        cv2.putText(frame,text1,(10, 30),cv2.FONT_HERSHEY_COMPLEX, 1,(0,255,255),1,cv2.LINE_AA)
+        cv2.putText(frame,text2,(10, 60),cv2.FONT_HERSHEY_COMPLEX, 1,(0,0,255),1,cv2.LINE_AA)
         cv2.imshow("Covid-Cop",frame)
 
 video.release()
